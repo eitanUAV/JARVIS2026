@@ -1,0 +1,7 @@
+target/
+.git/
+.env
+*.log
+uploads/
+.DS_Store
+Cargo.lock

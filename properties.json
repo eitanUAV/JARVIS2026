@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "title": "Modern Villa in Bali",
+    "location": "Seminyak, Bali",
+    "price": 5000000000,
+    "description": "Luxury 3-bedroom villa with private pool and ocean view",
+    "image_thumb_webp": "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop",
+    "image_large_webp": "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop",
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "area_sqm": 250.0
+  },
+  {
+    "id": 2,
+    "title": "Downtown Apartment Jakarta",
+    "location": "Central Jakarta",
+    "price": 2500000000,
+    "description": "2-bedroom apartment with stunning city view",
+    "image_thumb_webp": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&h=300&fit=crop",
+    "image_large_webp": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop",
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "area_sqm": 85.0
+  },
+  {
+    "id": 3,
+    "title": "Beachfront House",
+    "location": "Nusa Dua, Bali",
+    "price": 8500000000,
+    "description": "4-bedroom beachfront property with garden",
+    "image_thumb_webp": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop",
+    "image_large_webp": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop",
+    "bedrooms": 4,
+    "bathrooms": 3,
+    "area_sqm": 350.0
+  }
+]

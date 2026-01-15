@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS2026 | AI Property Finder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-robot"></i>
+                <span>JARVIS<span class="highlight">2026</span></span>
+            </div>
+            
+            <ul class="nav-links">
+                <li class="active" data-page="home">
+                    <i class="fa-solid fa-home"></i>
+                    <span>Discover</span>
+                </li>
+                <li data-page="upload">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Upload Property</span>
+                </li>
+                <li data-page="wallet">
+                    <i class="fa-solid fa-wallet"></i>
+                    <span>My Wallet</span>
+                </li>
+            </ul>
+
+            <div class="user-profile">
+                <div class="avatar">MA</div>
+                <div class="user-info">
+                    <span class="name">Mikhael Abraham</span>
+                    <span class="balance">0 Tokens</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="search-bar">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search modern homes, villas...">
+                </div>
+                <div class="actions">
+                    <button class="icon-btn"><i class="fa-regular fa-bell"></i></button>
+                    <button class="icon-btn"><i class="fa-solid fa-gear"></i></button>
+                </div>
+            </header>
+
+            <div id="homePage" class="page-content active">
+                <div class="hero-section">
+                    <h1>Find Your <span class="gradient-text">Dream Space</span></h1>
+                    <p>AI-powered property recommendations tailored just for you.</p>
+                </div>
+
+                <div class="properties-grid" id="propertiesGrid">
+                    <!-- Properties will be injected here -->
+                    <div class="loading-spinner">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div id="uploadPage" class="page-content">
+                <div class="upload-container">
+                    <h2>Upload New Property</h2>
+                    <p class="subtitle">Earn tokens by verifying and uploading property data.</p>
+                    
+                    <form id="uploadForm">
+                        <div class="form-group two-col">
+                            <div class="input-wrapper">
+                                <label>Property Title</label>
+                                <input type="text" name="title" required placeholder="e.g. Modern Villa via Giulia">
+                            </div>
+                            <div class="input-wrapper">
+                                <label>Location</label>
+                                <input type="text" name="location" required placeholder="e.g. Rome, Italy">
+                            </div>
+                        </div>
+
+                        <div class="form-group two-col">
+                            <div class="input-wrapper">
+                                <label>Price ($)</label>
+                                <input type="number" name="price" required placeholder="1500000">
+                            </div>
+                            <div class="input-wrapper">
+                                <label>Area (sqm)</label>
+                                <input type="number" name="area_sqm" placeholder="250">
+                            </div>
+                        </div>
+
+                        <div class="form-group three-col">
+                            <div class="input-wrapper">
+                                <label>Bedrooms</label>
+                                <input type="number" name="bedrooms" placeholder="4">
+                            </div>
+                            <div class="input-wrapper">
+                                <label>Bathrooms</label>
+                                <input type="number" name="bathrooms" placeholder="3">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea name="description" rows="4" placeholder="Describe the property details..."></textarea>
+                        </div>
+
+                        <div class="file-upload-area" id="dropZone">
+                            <i class="fa-solid fa-cloud-upload-alt"></i>
+                            <h3>Upload Photos & Videos</h3>
+                            <p>Drag & drop files here or click to browse</p>
+                            <input type="file" name="files" id="fileInput" multiple required>
+                            <div id="fileList" class="file-list"></div>
+                        </div>
+
+                        <button type="submit" class="submit-btn">
+                            <i class="fa-solid fa-check"></i> Publish Property
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div id="walletPage" class="page-content">
+                 <div class="wallet-dashboard">
+                    <div class="balance-card">
+                        <h3>Total Balance</h3>
+                        <div class="amount">0 <span>TOKENS</span></div>
+                        <p>≈ $0.00 USD</p>
+                    </div>
+                    <div class="transactions-list">
+                        <h3>Recent Transactions</h3>
+                        <div class="empty-state">No transactions yet</div>
+                    </div>
+                 </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,610 @@
+// JARVIS Property Finder - Fixed Thread Safety Version
+// by Mikhael Abraham | +6281280126126
+// Date: 6 Jan 2025
+
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex as StdMutex};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct Property {
+    id: usize,
+    title: String,
+    location: String,
+    price: f64,
+    description: String,
+    image_thumb_webp: String,
+    image_large_webp: String,
+    bedrooms: Option<u32>,
+    bathrooms: Option<u32>,
+    area_sqm: Option<f64>,
+}
+
+struct AppState {
+    properties: Arc<StdMutex<Vec<Property>>>,
+    favorites: Arc<StdMutex<Vec<usize>>>,
+    audio_active: Arc<StdMutex<bool>>,
+}
+
+// Audio tone generation - NO THREADING (Keep stream in scope)
+fn start_ambient_audio() -> anyhow::Result<()> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| anyhow::anyhow!("No audio device"))?;
+
+    let config = device.default_output_config()?;
+    let sample_rate = config.sample_rate().0 as f32;
+
+    println!("🎵 Ambient audio ready at {} Hz", sample_rate);
+    println!("   110Hz (left) / 117Hz (right) = 7Hz binaural beat");
+
+    let mut phase_l = 0.0f32;
+    let mut phase_r = 0.0f32;
+    let freq_l = 110.0; // Deep baritone
+    let freq_r = 117.0; // 7Hz binaural theta wave
+
+    let stream = device.build_output_stream(
+        &config.into(),
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            for frame in data.chunks_mut(2) {
+                // Left channel
+                frame[0] = (phase_l * 2.0 * std::f32::consts::PI).sin() * 0.3;
+                phase_l += freq_l / sample_rate;
+                if phase_l >= 1.0 {
+                    phase_l -= 1.0;
+                }
+
+                // Right channel
+                frame[1] = (phase_r * 2.0 * std::f32::consts::PI).sin() * 0.3;
+                phase_r += freq_r / sample_rate;
+                if phase_r >= 1.0 {
+                    phase_r -= 1.0;
+                }
+            }
+        },
+        |err| eprintln!("Audio error: {}", err),
+        None,
+    )?;
+
+    stream.play()?;
+
+    // IMPORTANT: Keep stream alive by leaking it
+    // This is intentional - we want it to play forever
+    Box::leak(Box::new(stream));
+
+    println!("✅ Ambient audio started successfully");
+    Ok(())
+}
+
+// JEPA-style audio processing
+fn process_audio_jepa(audio_samples: Vec<f32>) -> Vec<f32> {
+    let mean: f32 = audio_samples.iter().sum::<f32>() / audio_samples.len() as f32;
+    let variance: f32 = audio_samples
+        .iter()
+        .map(|&x| (x - mean).powi(2))
+        .sum::<f32>()
+        / audio_samples.len() as f32;
+    let std_dev = (variance + 1e-8).sqrt();
+
+    audio_samples
+        .iter()
+        .map(|&x| (x - mean) / std_dev)
+        .collect()
+}
+
+// Generate mock audio signal
+fn generate_mock_audio(duration_secs: f32, sample_rate: f32) -> Vec<f32> {
+    let num_samples = (duration_secs * sample_rate) as usize;
+    let mut samples = Vec::with_capacity(num_samples);
+
+    for i in 0..num_samples {
+        let t = i as f32 / sample_rate;
+        let sample = 0.5 * (2.0 * std::f32::consts::PI * 150.0 * t).sin()
+            + 0.3 * (2.0 * std::f32::consts::PI * 300.0 * t).sin()
+            + 0.2 * (2.0 * std::f32::consts::PI * 450.0 * t).sin();
+        samples.push(sample * 0.5);
+    }
+
+    samples
+}
+
+#[derive(Deserialize)]
+struct AudioRequest {
+    query: String,
+    enable_ambient: Option<bool>,
+}
+
+#[post("/analyze-audio")]
+async fn analyze_audio(req: web::Json<AudioRequest>, state: web::Data<AppState>) -> impl Responder {
+    println!("🎤 Audio analysis request: {}", req.query);
+
+    // Enable ambient audio if requested
+    if req.enable_ambient.unwrap_or(false) {
+        let mut audio_active = state.audio_active.lock().unwrap();
+        if !*audio_active {
+            match start_ambient_audio() {
+                Ok(_) => {
+                    *audio_active = true;
+                }
+                Err(e) => {
+                    println!("⚠️  Audio start failed: {}", e);
+                    return HttpResponse::Ok().json(serde_json::json!({
+                        "status": "success",
+                        "message": "JEPA processing complete (audio unavailable)",
+                        "warning": format!("Audio: {}", e),
+                        "query": req.query,
+                    }));
+                }
+            }
+        }
+    }
+
+    // Generate and process with JEPA
+    let audio = generate_mock_audio(3.0, 44100.0);
+    let processed = process_audio_jepa(audio);
+
+    // Mock transcription
+    let transcriptions = vec![
+        "Show me properties in Bekasi under 2 billion rupiah",
+        "I want a house with 3 bedrooms and 2 bathrooms",
+        "Cari rumah di Jakarta Selatan dengan kolam renang",
+        "Find me a villa with a garden in West Java",
+        "Tampilkan apartemen mewah di Jakarta Pusat",
+        "Show luxury apartments with sea view",
+    ];
+
+    let energy: f32 = processed.iter().map(|x| x.abs()).sum();
+    let idx = (energy * 1000.0) as usize % transcriptions.len();
+    let transcription = transcriptions[idx];
+
+    println!("📝 Transcription: {}", transcription);
+
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "success",
+        "message": "JEPA audio processing complete",
+        "samples_processed": processed.len(),
+        "transcription": transcription,
+        "query": req.query,
+    }))
+}
+
+#[get("/properties")]
+async fn get_properties(state: web::Data<AppState>) -> impl Responder {
+    let properties = state.properties.lock().unwrap();
+    HttpResponse::Ok().json(&*properties)
+}
+
+#[derive(Deserialize)]
+struct SearchQuery {
+    query: String,
+}
+
+#[post("/search")]
+async fn search_properties(
+    query: web::Json<SearchQuery>,
+    state: web::Data<AppState>,
+) -> impl Responder {
+    let search = query.query.to_lowercase();
+    println!("🔍 Searching: {}", search);
+
+    let properties = state.properties.lock().unwrap();
+    let results: Vec<Property> = properties
+        .iter()
+        .filter(|p| {
+            p.title.to_lowercase().contains(&search)
+                || p.location.to_lowercase().contains(&search)
+                || p.description.to_lowercase().contains(&search)
+        })
+        .cloned()
+        .collect();
+
+    println!("✅ Found {} properties", results.len());
+    HttpResponse::Ok().json(results)
+}
+
+#[get("/")]
+async fn index() -> impl Responder {
+    let html = r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JARVIS Property Finder - Voice AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 15px 35px;
+            font-size: 1.1em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        button:active { transform: translateY(0); }
+        button.ai-mode {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        #status {
+            text-align: center;
+            font-size: 1.2em;
+            color: #555;
+            margin: 20px 0;
+            min-height: 30px;
+        }
+        .properties {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        .property {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        .property:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .property img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .property h3 {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .property .price {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .property .location {
+            color: #764ba2;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        .property .specs {
+            display: flex;
+            gap: 15px;
+            margin: 10px 0;
+            font-size: 0.95em;
+            color: #666;
+        }
+        .indicator {
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 5px;
+            height: 60px;
+            margin: 20px 0;
+        }
+        .indicator.active { display: flex; }
+        .bar {
+            width: 8px;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 4px;
+            animation: pulse 1s infinite ease-in-out;
+        }
+        @keyframes pulse {
+            0%, 100% { height: 20%; }
+            50% { height: 100%; }
+        }
+        .bar:nth-child(1) { animation-delay: 0s; }
+        .bar:nth-child(2) { animation-delay: 0.1s; }
+        .bar:nth-child(3) { animation-delay: 0.2s; }
+        .bar:nth-child(4) { animation-delay: 0.3s; }
+        .bar:nth-child(5) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 JARVIS Property Finder</h1>
+        <p class="subtitle">by Mikhael Abraham | +6281280126126</p>
+        <div style="text-align: center;">
+            <span class="badge">🎙️ JEPA AI-Powered Voice Analysis</span>
+        </div>
+
+        <div class="controls">
+            <button id="voiceBtn">🎤 Speak to JARVIS</button>
+            <button class="ai-mode" id="aiBtn">🧠 AI Audio Analysis</button>
+        </div>
+
+        <div id="status">Ready - Click the microphone to start</div>
+
+        <div class="indicator" id="indicator">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+
+        <div class="properties" id="properties"></div>
+    </div>
+
+    <script>
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        const synth = window.speechSynthesis;
+        const status = document.getElementById('status');
+        const indicator = document.getElementById('indicator');
+        const propertiesDiv = document.getElementById('properties');
+
+        let allProperties = [];
+
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.95;
+            synth.speak(utterance);
+        }
+
+        async function loadProperties() {
+            try {
+                const response = await fetch('/properties');
+                allProperties = await response.json();
+                displayProperties(allProperties);
+            } catch (error) {
+                console.error('Error:', error);
+                status.textContent = 'Error loading properties';
+            }
+        }
+
+        function displayProperties(properties) {
+            propertiesDiv.innerHTML = '';
+            properties.forEach(prop => {
+                const div = document.createElement('div');
+                div.className = 'property';
+
+                const specs = [];
+                if (prop.bedrooms) specs.push(`🛏️ ${prop.bedrooms} beds`);
+                if (prop.bathrooms) specs.push(`🚿 ${prop.bathrooms} baths`);
+                if (prop.area_sqm) specs.push(`📐 ${prop.area_sqm} m²`);
+
+                div.innerHTML = `
+                    <img src="${prop.image_thumb_webp}" alt="${prop.title}">
+                    <h3>${prop.title}</h3>
+                    <p class="location">📍 ${prop.location}</p>
+                    <p class="price">Rp ${(prop.price / 1000000).toFixed(1)}M</p>
+                    <div class="specs">${specs.join(' • ')}</div>
+                    <p>${prop.description}</p>
+                `;
+                propertiesDiv.appendChild(div);
+            });
+        }
+
+        async function searchProperties(query) {
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query }),
+                });
+                const results = await response.json();
+                displayProperties(results);
+                speak(`Found ${results.length} properties matching your search`);
+                status.textContent = `Found ${results.length} properties`;
+            } catch (error) {
+                console.error('Error:', error);
+                status.textContent = 'Search error';
+            }
+        }
+
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            recognition.start();
+            status.textContent = '🎤 Listening...';
+            indicator.classList.add('active');
+            speak('JARVIS listening. What property are you looking for?');
+        });
+
+        document.getElementById('aiBtn').addEventListener('click', async () => {
+            status.textContent = '🧠 AI analyzing audio patterns...';
+            indicator.classList.add('active');
+            speak('Activating JEPA neural network for advanced audio analysis');
+
+            try {
+                const response = await fetch('/analyze-audio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'AI analysis',
+                        enable_ambient: true
+                    }),
+                });
+                const result = await response.json();
+                status.textContent = `✅ ${result.message}`;
+                speak('JEPA audio processing complete. Advanced neural patterns analyzed.');
+
+                setTimeout(() => {
+                    indicator.classList.remove('active');
+                }, 2000);
+            } catch (error) {
+                console.error('Error:', error);
+                status.textContent = 'AI analysis error';
+                indicator.classList.remove('active');
+            }
+        });
+
+        recognition.onresult = (event) => {
+            const query = event.results[0][0].transcript;
+            status.textContent = `You said: "${query}"`;
+            indicator.classList.remove('active');
+            speak(`Searching for ${query}`);
+            searchProperties(query);
+        };
+
+        recognition.onspeechend = () => {
+            recognition.stop();
+            indicator.classList.remove('active');
+        };
+
+        recognition.onerror = (event) => {
+            status.textContent = `Error: ${event.error}`;
+            indicator.classList.remove('active');
+        };
+
+        loadProperties();
+    </script>
+</body>
+</html>"#;
+
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    println!("╔════════════════════════════════════════════════════════╗");
+    println!("║  🤖 JARVIS Property Finder - JEPA Voice System        ║");
+    println!("║     by Mikhael Abraham | +6281280126126               ║");
+    println!("║     THREAD-SAFE VERSION                               ║");
+    println!("╚════════════════════════════════════════════════════════╝\n");
+
+    let properties = vec![
+        Property {
+            id: 1,
+            title: "Modern Villa Bekasi".to_string(),
+            location: "Bekasi, West Java".to_string(),
+            price: 1_500_000_000.0,
+            description: "Beautiful 3-bedroom villa with private pool".to_string(),
+            image_thumb_webp: "https://placehold.co/400x300/667eea/white?text=Villa+Bekasi"
+                .to_string(),
+            image_large_webp: "https://placehold.co/800x600/667eea/white?text=Villa+Bekasi"
+                .to_string(),
+            bedrooms: Some(3),
+            bathrooms: Some(2),
+            area_sqm: Some(120.0),
+        },
+        Property {
+            id: 2,
+            title: "Luxury Apartment Jakarta".to_string(),
+            location: "Jakarta Selatan".to_string(),
+            price: 2_800_000_000.0,
+            description: "Penthouse with stunning city views".to_string(),
+            image_thumb_webp: "https://placehold.co/400x300/764ba2/white?text=Jakarta+Apt"
+                .to_string(),
+            image_large_webp: "https://placehold.co/800x600/764ba2/white?text=Jakarta+Apt"
+                .to_string(),
+            bedrooms: Some(4),
+            bathrooms: Some(3),
+            area_sqm: Some(180.0),
+        },
+        Property {
+            id: 3,
+            title: "Cozy House Jakarta Timur".to_string(),
+            location: "Jakarta Timur".to_string(),
+            price: 950_000_000.0,
+            description: "Family home near schools".to_string(),
+            image_thumb_webp: "https://placehold.co/400x300/f093fb/white?text=House+JakTim"
+                .to_string(),
+            image_large_webp: "https://placehold.co/800x600/f093fb/white?text=House+JakTim"
+                .to_string(),
+            bedrooms: Some(2),
+            bathrooms: Some(1),
+            area_sqm: Some(80.0),
+        },
+        Property {
+            id: 4,
+            title: "Beachfront Villa Bali".to_string(),
+            location: "Seminyak, Bali".to_string(),
+            price: 5_200_000_000.0,
+            description: "Stunning beachfront property".to_string(),
+            image_thumb_webp: "https://placehold.co/400x300/4facfe/white?text=Bali+Villa"
+                .to_string(),
+            image_large_webp: "https://placehold.co/800x600/4facfe/white?text=Bali+Villa"
+                .to_string(),
+            bedrooms: Some(5),
+            bathrooms: Some(4),
+            area_sqm: Some(300.0),
+        },
+    ];
+
+    let app_state = web::Data::new(AppState {
+        properties: Arc::new(StdMutex::new(properties)),
+        favorites: Arc::new(StdMutex::new(Vec::new())),
+        audio_active: Arc::new(StdMutex::new(false)),
+    });
+
+    println!(
+        "📦 Loaded {} properties",
+        app_state.properties.lock().unwrap().len()
+    );
+    println!("\n🚀 Server starting on http://127.0.0.1:8080");
+    println!("🎙️  Voice: Web Speech API");
+    println!("🎵 Audio: 110Hz/117Hz binaural (on-demand)");
+    println!("🧠 JEPA: Neural audio processing active\n");
+    println!("✨ Open http://127.0.0.1:8080 in your browser\n");
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .service(index)
+            .service(get_properties)
+            .service(search_properties)
+            .service(analyze_audio)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
+}
