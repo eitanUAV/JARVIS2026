@@ -1,7 +1,7 @@
-# Build stage - Updated for edition2024 support
+# Build stage - Pinning deps to avoid nightly
 FROM rust:1.84-slim as builder
 
-# Force rebuild - 2026-01-15
+# Force rebuild with pinned deps - 2026-01-15 v3
 
 WORKDIR /app
 
