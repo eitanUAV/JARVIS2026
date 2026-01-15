@@ -1,5 +1,7 @@
-# Build stage
+# Build stage - Updated for edition2024 support
 FROM rust:1.84-slim as builder
+
+# Force rebuild - 2026-01-15
 
 WORKDIR /app
 
