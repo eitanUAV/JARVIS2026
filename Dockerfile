@@ -1,14 +1,14 @@
 # Build stage - Pinning deps to avoid nightly
 FROM rust:1.84-slim as builder
 
-# Force rebuild with pinned deps - 2026-01-15 v3
-
+# Force rebuild with audio deps - 2026-01-17
 WORKDIR /app
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    libasound2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy all source files
@@ -26,6 +26,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
