@@ -1,8 +1,11 @@
 [package]
 name = "jarvis-property-upload"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
-authors = ["Mikhael Abraham <mikhael@example.com>"]
+authors = ["Mikhael Abraham"]
+description = "Property listing and media upload API with content-addressed storage and token rewards"
+license-file = "LICENSE"
+publish = false
 
 [dependencies]
 # Web framework
@@ -30,10 +33,6 @@ chrono = { version = "0.4", features = ["serde"] }
 # Hashing
 sha2 = "0.10"
 hex = "0.4"
-
-# Audio processing
-cpal = "0.15"
-anyhow = "1.0"
 
 # Environment
 dotenv = "0.15"

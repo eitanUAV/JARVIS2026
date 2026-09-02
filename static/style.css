@@ -467,3 +467,98 @@ input:focus, textarea:focus {
     color: var(--text-muted);
     font-style: italic;
 }
+
+/* --- Uploaded media ---------------------------------------------------- */
+
+.card-image video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.media-count {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background-color: rgba(15, 16, 20, 0.75);
+    color: var(--text-main);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+}
+
+/* --- Wallet transactions ----------------------------------------------- */
+
+.transaction-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.transaction-row:last-child {
+    border-bottom: none;
+}
+
+.transaction-row .tx-type {
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.transaction-row .tx-date {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.transaction-row .tx-amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.transaction-row .tx-amount.positive { color: var(--accent); }
+.transaction-row .tx-amount.negative { color: #ff7675; }
+
+/* --- Toasts ------------------------------------------------------------- */
+
+.toast-host {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+    max-width: min(380px, calc(100vw - 48px));
+}
+
+.toast {
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 14px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    animation: toast-in 0.2s ease-out;
+}
+
+.toast-success { border-left-color: var(--accent); }
+.toast-error   { border-left-color: #ff7675; }
+.toast-info    { border-left-color: var(--primary); }
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast { animation: none; }
+}

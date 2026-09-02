@@ -1,7 +1,9 @@
 target/
 .git/
+.github/
 .env
 *.log
 uploads/
 .DS_Store
-Cargo.lock
+notes/
+README.md
